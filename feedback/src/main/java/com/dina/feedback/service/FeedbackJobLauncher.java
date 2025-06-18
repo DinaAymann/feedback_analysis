@@ -18,8 +18,8 @@ public class FeedbackJobLauncher {
 
     public void launchJob(String filename) throws Exception {
         var params = new JobParametersBuilder()
-                .addString("fileName", filename)
-                .addLong("timestamp", System.currentTimeMillis()) // to ensure uniqueness
+                .addString("inputFile", filename) // Changed from "fileName" to "inputFile"
+                .addLong("timestamp", System.currentTimeMillis())
                 .toJobParameters();
 
         jobLauncher.run(importFeedbackJob, params);
