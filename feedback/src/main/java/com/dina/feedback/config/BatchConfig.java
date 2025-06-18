@@ -229,4 +229,27 @@ public class BatchConfig {
     public SkipPolicy customSkipPolicy() {
         return new SkipPolicy() {
             @Override
-            public boolean shouldSkip(Throwable t, long skipCount) throws SkipLimitExceededException
+            public boolean shouldSkip(Throwable t, long skipCount) throws SkipLimitExceededException {
+                // Skip validation errors and continue processing
+                if (t instanceof ValidationException) {
+                    log.warn("Skipping record due to validation error: {}", t.getMessage());
+                    return true;
+                }
+
+                // Skip JSON parsing errors
+                if (t.getCause() instanceof com.fasterxml.jackson.core.JsonProcessingException) {
+                    log.warn("Skipping record due to JSON parsing error: {}", t.getMessage());
+                    return true;
+                }
+
+                // Don't skip other types of errors
+                return false;
+            }
+        };
+    }
+
+    private String getCurrentJobExecutionId() {
+        // This would be injected or retrieved from job context in a real implementation
+        return "BATCH_" + System.currentTimeMillis();
+    }
+}
