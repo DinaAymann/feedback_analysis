@@ -78,6 +78,8 @@ public class BatchConfig {
 
             private List<Feedback> feedbackList;
             private int currentIndex = 0;
+            final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(getClass());
+
 
             @Override
             protected void doOpen() throws Exception {
@@ -118,6 +120,8 @@ public class BatchConfig {
 
     @Bean
     public ItemProcessor<Feedback, Feedback> feedbackItemProcessor() {
+        final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(getClass());
+
         return item -> {
             try {
                 // Validate rating
@@ -145,17 +149,16 @@ public class BatchConfig {
                 );
 
                 // Build the fact record
-                Feedback processedFeedback = Feedback.builder()
-                        .userKey(userKey)
-                        .agencyKey(agencyKey)
-                        .locationKey(locationKey)
-                        .languageKey(languageKey)
-                        .rating(item.getRating())
-                        .comment(item.getComment())
-                        .feedbackTimestamp(item.getFeedbackDate() != null ?
-                                item.getFeedbackDate().atStartOfDay() : LocalDateTime.now())
-                        .processingBatchId(getCurrentJobExecutionId())
-                        .build();
+                Feedback processedFeedback = new Feedback();
+                processedFeedback.userKey=userKey;
+                processedFeedback.agencyKey =agencyKey;
+                processedFeedback.locationKey=locationKey;
+                processedFeedback.languageKey=languageKey;
+                processedFeedback.rating=item.getRating();
+                processedFeedback.comment=item.getComment();
+                processedFeedback.feedbackTimestamp = item.getFeedbackDate() != null ?
+                                item.getFeedbackDate().atStartOfDay() : LocalDateTime.now();
+                processedFeedback.processingBatchId=getCurrentJobExecutionId();
 
                 log.debug("Processed feedback: userId={}, rating={}", item.getUserId(), item.getRating());
                 return processedFeedback;
@@ -169,8 +172,12 @@ public class BatchConfig {
 
     @Bean
     public ItemWriter<Feedback> feedbackItemWriter() {
+
         return items -> {
+            final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(getClass());
+
             try {
+
                 List<Feedback> itemList = (List<Feedback>) items;
                 feedbackRepository.saveAll(itemList);
                 log.info("Successfully saved {} feedback records", itemList.size());
@@ -183,6 +190,8 @@ public class BatchConfig {
 
     @Bean
     public JobExecutionListener jobExecutionListener() {
+        final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(getClass());
+
         return new JobExecutionListener() {
             @Override
             public void beforeJob(JobExecution jobExecution) {
@@ -210,11 +219,15 @@ public class BatchConfig {
         return new StepExecutionListener() {
             @Override
             public void beforeStep(StepExecution stepExecution) {
+                final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(getClass());
+
                 log.info("Starting step: {}", stepExecution.getStepName());
             }
 
             @Override
             public ExitStatus afterStep(StepExecution stepExecution) {
+                final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(getClass());
+
                 log.info("Step completed: {} - Read: {}, Written: {}, Skipped: {}",
                         stepExecution.getStepName(),
                         stepExecution.getReadCount(),
@@ -230,6 +243,8 @@ public class BatchConfig {
         return new SkipPolicy() {
             @Override
             public boolean shouldSkip(Throwable t, long skipCount) throws SkipLimitExceededException {
+                final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(getClass());
+
                 // Skip validation errors and continue processing
                 if (t instanceof ValidationException) {
                     log.warn("Skipping record due to validation error: {}", t.getMessage());
