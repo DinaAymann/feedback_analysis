@@ -78,15 +78,19 @@ public class JobStatusService {
                 .jobName(jobExecution.getJobInstance().getJobName())
                 .batchStatus(jobExecution.getStatus().toString())
                 .exitStatus(jobExecution.getExitStatus().getExitCode())
-                .startTime(jobExecution.getStartTime() != null ?
-                        jobExecution.getStartTime().toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime() : null)
-                .endTime(jobExecution.getEndTime() != null ?
-                        jobExecution.getEndTime().toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime() : null)
+                .startTime(jobExecution.getStartTime())  // Use directly
+                .endTime(jobExecution.getEndTime())      // Use directly
                 .fileName(jobExecution.getJobParameters().getString("inputFile"))
                 .recordsProcessed(0L) // Will be updated by step listener
                 .recordsFailed(0L)   // Will be updated by step listener
                 .build();
 
         jobStatusRepository.save(status);
+    }
+
+    private LocalDateTime convertToLocalDateTime(Date date) {
+        return date != null ? date.toInstant()
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDateTime() : null;
     }
 }

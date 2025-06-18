@@ -97,14 +97,14 @@ public class FileUploadController {
             fileRecordRepository.save(fileRecord);
 
             // Launch batch job
-            Long jobExecutionId = feedbackJobLauncher.launchJob(filename);
+            feedbackJobLauncher.launchJob(filename);
 
             response.put("success", true);
             response.put("message", "✅ File uploaded and processing started");
             response.put("filename", filename);
-            response.put("jobExecutionId", jobExecutionId);
+            //response.put("jobExecutionId", jobExecutionId);
 
-            log.info("File uploaded successfully: {}, Job ID: {}", filename, jobExecutionId);
+            //log.info("File uploaded successfully: {}, Job ID: {}", filename, jobExecutionId);
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {

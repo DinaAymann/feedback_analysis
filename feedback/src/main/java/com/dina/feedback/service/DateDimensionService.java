@@ -35,21 +35,23 @@ public class DateDimensionService {
                     currentDate.getDayOfMonth();
 
             if (!dateRepository.existsByDateKey(dateKey)) {
-                DimDate dimDate = DimDate.builder()
-                        .dateKey(dateKey)
-                        .fullDate(currentDate)
-                        .year(currentDate.getYear())
-                        .quarter((currentDate.getMonthValue() - 1) / 3 + 1)
-                        .month(currentDate.getMonthValue())
-                        .week(currentDate.getDayOfYear() / 7 + 1)
-                        .dayOfYear(currentDate.getDayOfYear())
-                        .dayOfMonth(currentDate.getDayOfMonth())
-                        .dayOfWeek(currentDate.getDayOfWeek().getValue())
-                        .monthName(currentDate.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH))
-                        .dayName(currentDate.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.ENGLISH))
-                        .isWeekend(currentDate.getDayOfWeek().getValue() >= 6)
-                        .isHoliday(false) // Implement holiday logic as needed
-                        .build();
+//                DimDate dimDate = DimDate.builder()
+//                        .dateKey(String.valueOf(dateKey))
+//                        .fullDate(currentDate)
+//                        .year(currentDate.getYear())
+//                        .quarter((currentDate.getMonthValue() - 1) / 3 + 1)
+//                        .month(currentDate.getMonthValue())
+//                        .week(currentDate.getDayOfYear() / 7 + 1)
+//                        .dayOfYear(currentDate.getDayOfYear())
+//                        .dayOfMonth(currentDate.getDayOfMonth())
+//                        .dayOfWeek(currentDate.getDayOfWeek().getValue())
+//                        .monthName(currentDate.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH))
+//                        .dayName(currentDate.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.ENGLISH))
+//                        .isWeekend(currentDate.getDayOfWeek().getValue() >= 6)
+//                        .isHoliday(false) // Implement holiday logic as needed
+//                        .build();
+                DimDate dimDate = new DimDate(currentDate);
+                dimDate.setDateKey(String.valueOf(dateKey));
 
                 dateRepository.save(dimDate);
             }
