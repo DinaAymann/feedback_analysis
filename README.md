@@ -40,87 +40,118 @@ This backend project implements a scalable feedback ingestion and analytics pipe
   Custom skip policy logs and skips validation and parsing errors, tolerating up to 1000 skips per run.
 
 ### 4. Database Layer
+### Star Schema Design
 
-#### Schema Design (Star Schema)
+The system implements a classic star schema with the following structure:
 
-- **Fact Table:**
-  - `Feedback`: Stores individual feedback events, referencing users, agencies, locations, and languages by surrogate keys.
-- **Dimension Tables:**
-  - `User`: Unique users providing feedback.
-  - `Agency`: Agencies/organizations being reviewed.
-  - `Location`: Geographical locations tied to feedback.
-  - `Language`: Language of the feedback.
-
-#### Example Entity Documentation
-
-##### `Feedback.java`
-```java
-@Entity
-@Table(name = "feedback")
-public class Feedback {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    // Foreign keys to dimensions
-    private Long userKey;
-    private Long agencyKey;
-    private Long locationKey;
-    private Long languageKey;
-
-    // Feedback attributes
-    private Integer rating;
-    private String comment;
-    private LocalDateTime feedbackTimestamp;
-    private String processingBatchId;
-    // ... other fields and JPA annotations
-}
 ```
-- **Purpose:** Fact entity at the center of the star schema. Stores analytic events; keys reference dimension tables for slicing and aggregation.
-
-##### `FileRecord.java`
-```java
-@Entity
-@Table(name = "file_records")
-public class FileRecord {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    @Column(unique = true, nullable = false)
-    private String filename;
-    @Column(nullable = false)
-    private boolean processed = false;
-    private Timestamp uploadedAt;
-    private Timestamp processingStartedAt;
-    private Timestamp processingCompletedAt;
-    private Long recordsProcessed = 0L;
-    private Long recordsFailed = 0L;
-    private String errorMessage;
-}
+         ┌─────────────┐
+         │  DimDate    │
+         │ (dim_date)  │
+         └─────────────┘
+                │
+                │
+    ┌─────────────────────────────────────┐
+    │        FactFeedback                 │
+    │     (fact_feedback)                 │
+    │  - Tweet/Post interactions          │
+    │  - Engagement metrics               │
+    │  - Content analysis                 │
+    └─────────────────────────────────────┘
+         │         │         │         │
+         │         │         │         │
+┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+│   DimUser   │ │  DimIssue   │ │ DimLocation │ │  DimAgency  │
+│ (dim_user)  │ │ (dim_issue) │ │(dim_location)│ │(dim_agency) │
+└─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘
 ```
-- **Purpose:** Tracks all uploaded files and their batch processing status. Guarantees idempotency and reliable job management.
 
-##### `JobExecutionStatus.java`
-- Stores metadata and execution status per batch job for monitoring and auditing purposes.
+### Entity Descriptions
 
----
+#### Fact Table
+- **`FactFeedback`** (`fact_feedback`)
+  - **Primary Key**: `tweetId` (Long)
+  - **Metrics**: Engagement data (likes, retweets, replies, quotes, bookmarks, impressions)
+  - **Content**: Tweet text, language, platform
+  - **Relationships**: Foreign keys to all dimension tables
+  - **Computed Fields**: `totalInteraction` (transient field calculated from engagement metrics)
 
-## Key Code Modules
+#### Dimension Tables
 
-- **`FileUploadController`**:  
-  Handles file ingestion, prevents duplicates, and triggers batch jobs on upload.
+1. **`DimDate`** (`dim_date`)
+   - **Primary Key**: `dateKey` (Integer, YYYYMMDD format)
+   - **Attributes**: Full date, year, month, day, week, weekday name
+   - **Purpose**: Time-based analysis and reporting
 
-- **`FileStorageService`**:  
-  Encapsulates file IO, ensures safe storage, prevents duplicates.
+2. **`DimUser`** (`dim_user`)
+   - **Primary Key**: `userKey` (Integer, auto-generated)
+   - **Unique**: `userId` (String)
+   - **Attributes**: Username, account creation date, follower metrics, tweet count
+   - **Purpose**: User behavior and influence analysis
 
-- **`BatchConfig`**:  
-  - Sets up Spring Batch jobs and steps.
-  - Defines chunk size (100), error skip policy, processor logic, and listeners for job/step lifecycle events.
+3. **`DimAgency`** (`dim_agency`)
+   - **Primary Key**: `agencyKey` (Integer, auto-generated)
+   - **Unique**: `mention` (String)
+   - **Purpose**: Government agency mention tracking
+   - **Relationships**: One-to-many with `FactMention`
 
-- **`FeedbackRepository`, `FileRecordRepository`, `JobExecutionStatusRepository`**:  
-  JPA repositories for fact, control/meta, and job status data.
+4. **`DimIssue`** (`dim_issue`)
+   - **Primary Key**: `issueKey` (Integer, auto-generated)
+   - **Attributes**: Issue classification and categorization
+   - **Purpose**: Topic and issue-based analysis
 
----
+5. **`DimLocation`** (`dim_location`)
+   - **Primary Key**: `locationKey` (Integer, auto-generated)
+   - **Attributes**: Location string, city, country
+   - **Purpose**: Geographic analysis of feedback
+
+6. **`DimHashtag`** (`dim_hashtag`)
+   - **Primary Key**: `hashtagId` (Long, auto-generated)
+   - **Relationships**: Many-to-one with `FactFeedback`
+   - **Purpose**: Hashtag trend analysis
+
+#### Bridge Tables
+
+- **`FactMention`** (`fact_mentions`)
+  - **Composite Primary Key**: `FactMentionId` (tweet + agency)
+  - **Purpose**: Many-to-many relationship between tweets and agency mentions
+  - **Design**: Supports multiple agency mentions per tweet
+
+## 🚀 Key Features
+
+### 1. RESTful API Endpoints
+The system provides two main RESTful endpoints for:
+- **Data Retrieval**: Query feedback data with various filters
+- **File Management**: Handle file uploads and processing status
+
+### 2. Automated Data Processing
+- **Spring Batch Integration**: Automated processing of uploaded files
+- **Continuous Monitoring**: System checks for new files every minute
+- **Fault Tolerance**: Automatic retry mechanism for failed processing jobs
+- **Status Tracking**: Complete job execution monitoring through `JobExecutionStatus`
+
+### 3. File Processing Pipeline
+- **File Upload Detection**: Monitors for new data files
+- **Batch Processing**: Processes files using Spring Batch framework
+- **Status Management**: Tracks processing status via `FileRecord` entity
+- **Error Handling**: Comprehensive error logging and recovery
+
+## 🛠️ Technical Implementation
+
+### Technologies Used
+- **Framework**: Spring Boot 3+ (Jakarta EE)
+- **ORM**: JPA/Hibernate
+- **Database**: Relational database (MySQL/PostgreSQL compatible)
+- **Batch Processing**: Spring Batch
+- **Data Binding**: Lombok for reduced boilerplate
+- **Architecture**: Microservices-ready design
+
+### Key Design Patterns
+1. **Star Schema**: Optimized for analytical queries
+2. **Composite Keys**: Complex relationships with `@IdClass`
+3. **Cascade Operations**: Automatic entity lifecycle management
+4. **Lazy Loading**: Optimized data fetching strategies
+
 
 ## Design Highlights
 
@@ -157,31 +188,36 @@ public class FileRecord {
 
 ---
 
-## Entity Relationships (Star Schema Example)
+## 📋 What Has Been Completed
 
-```plaintext
-          +-----------+     +---------+     +-----------+
-          |  User     |     | Agency  |     | Location  |
-          +-----------+     +---------+     +-----------+
-                \               |               /
-                 \              |              /
-                  \             |             /
-                   +-------------------------+
-                   |       Feedback          |
-                   +-------------------------+
-                            |
-                        +--------+
-                        |Language|
-                        +--------+
-```
+### ✅ Core Data Model
+- [x] Complete star schema implementation
+- [x] All dimension tables with proper relationships
+- [x] Fact table with comprehensive metrics
+- [x] Bridge tables for many-to-many relationships
+- [x] Composite key implementations
 
----
+### ✅ Entity Relationships
+- [x] JPA annotations and mappings
+- [x] Bidirectional relationships with proper cascade settings
+- [x] Orphan removal for data integrity
+- [x] Foreign key constraints
 
-## Why This Approach
+### ✅ Batch Processing System
+- [x] Spring Batch configuration
+- [x] File monitoring and detection
+- [x] Automated processing pipeline
+- [x] Job execution status tracking
+- [x] Error handling and logging
 
-- **Spring Batch** enables scalable, fault-tolerant ingestion.
-- **Star schema** supports business analytics and BI tools (like Power BI) for fast, flexible reporting.
-- **Idempotent APIs** and batch jobs ensure data integrity and operational reliability.
+### ✅ API Infrastructure
+- [x] RESTful endpoint structure
+- [x] Data access layer foundations
+- [x] File management capabilities
 
----
+### ✅ Data Integrity Features
+- [x] Unique constraints on critical fields
+- [x] Proper data types for all fields
+- [x] Transient fields for computed values
+- [x] Comprehensive error tracking
 
