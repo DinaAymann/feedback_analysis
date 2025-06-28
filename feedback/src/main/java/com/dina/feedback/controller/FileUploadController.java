@@ -4,6 +4,7 @@ package com.dina.feedback.controller;
 
 import com.dina.feedback.model.FileRecord;
 import com.dina.feedback.repository.FileRecordRepository;
+import com.dina.feedback.service.FileProcessingService;
 import com.dina.feedback.service.FileStorageService;
 //import com.dina.feedback.service.FeedbackJobLauncher;
 import lombok.RequiredArgsConstructor;
@@ -102,7 +103,7 @@ import java.util.stream.Collectors;
 //        return ResponseEntity.ok(status);
 //    }
 //}
-
+@CrossOrigin(origins = "http://localhost:5173")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/files")
@@ -110,6 +111,7 @@ public class FileUploadController {
 
     private final FileStorageService fileStorageService;
     private final FileRecordRepository fileRecordRepository;
+    private final FileProcessingService fileProcessingService;
 
     @PostMapping("/upload")
     public ResponseEntity<Map<String, Object>> uploadFile(@RequestParam("file") MultipartFile file) {
@@ -138,9 +140,22 @@ public class FileUploadController {
             fileRecord.setProcessed(false);
             fileRecordRepository.save(fileRecord);
 
+            // ✅ Trigger Spring Batch to process the file
+//            try {
+//                fileProcessingService.processUploadedFile(fileStorageService.getFilePath(filename).toFile());
+//                response.put("success", true);
+//                response.put("message", "✅ File uploaded and processing started");
+//            } catch (Exception e) {
+//                response.put("success", false);
+//                response.put("message", "❌ Processing failed: " + e.getMessage());
+//                return ResponseEntity.internalServerError().body(response);
+//            }
             response.put("success", true);
             response.put("message", "✅ File uploaded successfully");
             response.put("filename", filename);
+
+
+
             return ResponseEntity.ok(response);
 
         } catch (IOException e) {
