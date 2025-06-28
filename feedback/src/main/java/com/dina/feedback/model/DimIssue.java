@@ -8,16 +8,14 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "dim_date")
+@Table(name = "dim_issue")
 @Data
-public class DimDate {
+public class DimIssue {
     @Id
-    private Integer dateKey; // YYYYMMDD
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer issueKey;
 
-    private LocalDate fullDate;
-    private Integer year;
-    private Integer month;
-    private Integer day;
-    private Integer week;
-    private String weekdayName;
+    private Integer issueId;
+    private Integer issueClassKey;
+    private String issueClassCode;
 }

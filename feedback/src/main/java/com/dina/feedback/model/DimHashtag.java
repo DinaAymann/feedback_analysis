@@ -8,16 +8,17 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "dim_date")
+@Table(name = "dim_hashtag")
 @Data
-public class DimDate {
+public class DimHashtag {
     @Id
-    private Integer dateKey; // YYYYMMDD
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long hashtagId;
 
-    private LocalDate fullDate;
-    private Integer year;
-    private Integer month;
-    private Integer day;
-    private Integer week;
-    private String weekdayName;
+    @ManyToOne
+    @JoinColumn(name = "tweet_id")
+    private FactFeedback tweet;
+
+    private String hashtag;
 }
+
