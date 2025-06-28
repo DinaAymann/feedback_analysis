@@ -39,6 +39,170 @@ This backend project implements a scalable feedback ingestion and analytics pipe
 - **Error Handling:**  
   Custom skip policy logs and skips validation and parsing errors, tolerating up to 1000 skips per run.
 
+
+This Spring Batch application automatically processes JSON feedback files with chunked processing and scheduled monitoring. The system processes files in chunks of 100 records and continuously monitors for new files every 60 seconds.
+
+### Components
+
+### 1. Batch Job Configuration (`FeedbackBatchJobConfig.java`)
+- Contains commented-out static job configuration
+- Dynamic job creation is handled in `MultiFileBatchRunner`
+
+### 2. Core Processing Components
+
+#### Item Reader (`FeedbackJsonItemReader.java`)
+```java
+public class FeedbackJsonItemReader implements ItemReader<FeedbackDTO>
+```
+- Reads JSON files containing arrays of `FeedbackDTO` objects
+- Uses Jackson `ObjectMapper` to parse JSON into Java objects
+- Implements iterator pattern for sequential reading
+
+#### Item Processor (`FeedbackItemProcessor.java`)
+```java
+public class FeedbackItemProcessor implements ItemProcessor<FeedbackDTO, FeedbackDTO>
+```
+- Currently passes items through unchanged
+- Placeholder for validation, normalization, or transformation logic
+
+#### Item Writer (`FeedbackItemWriter.java`)
+```java
+public class FeedbackItemWriter implements ItemWriter<FeedbackDTO>
+```
+- Processes chunks of feedback data
+- Converts Spring Batch `Chunk` to `List<FeedbackDTO>`
+- Delegates to `FeedbackServiceImpl` for database insertion
+
+### 3. Scheduled File Processor (`MultiFileBatchRunner.java`)
+
+#### Key Features:
+- **Scheduled Execution**: Runs every 60 seconds using `@Scheduled(fixedDelay = 60000)`
+- **Concurrent Protection**: Uses `AtomicBoolean` to prevent overlapping executions
+- **File Tracking**: Maintains processing status in database via `FileRecord` entity
+- **Dynamic Job Creation**: Creates unique jobs for each file processing
+
+#### Processing Flow:
+1. Scans upload directory for `.json` files
+2. Checks database to see if file was already processed
+3. Creates dynamic Spring Batch job for unprocessed files
+4. Executes job with chunk size of 100
+5. Marks file as processed and deletes it upon successful completion
+
+## Chunk Processing Details
+
+### Chunk Size Configuration
+```java
+.<FeedbackDTO, FeedbackDTO>chunk(100, transactionManager)
+```
+
+The system processes feedback records in chunks of **100 items**:
+- **Read**: Reads up to 100 `FeedbackDTO` objects from JSON
+- **Process**: Validates/transforms each item (currently pass-through)
+- **Write**: Batch inserts all 100 items to database in single transaction
+
+### Benefits of Chunking:
+- **Memory Efficiency**: Prevents loading entire large files into memory
+- **Transaction Management**: Each chunk is processed in separate transaction
+- **Error Isolation**: Failure in one chunk doesn't affect others
+- **Performance**: Optimized batch database operations
+
+### Scheduled Monitoring
+```java
+@Scheduled(fixedDelay = 60000) // Every 60 seconds
+```
+
+The system continuously monitors for new files:
+- **Frequency**: Every 60 seconds after previous execution completes
+- **Directory**: Configured via `${file.upload-dir}` property
+- **File Pattern**: Only processes files ending with `.json`
+
+### Failure Recovery
+- **Duplicate Prevention**: Database tracking prevents reprocessing
+- **Atomic Operations**: Files only deleted after successful processing
+- **Error Logging**: Failed processing attempts are logged with stack traces
+- **Retry Logic**: Failed files remain in directory for next scheduled run
+
+### Concurrent Execution Protection
+```java
+private final AtomicBoolean isRunning = new AtomicBoolean(false);
+
+if (!isRunning.compareAndSet(false, true)) {
+    System.out.println("⏳ Batch already running. Skipping this schedule.");
+    return;
+}
+```
+
+## Database Configuration
+
+### Batch Metadata (`BatchConfig.java`)
+```java
+@Bean
+public JobRepository jobRepository(DataSource dataSource, PlatformTransactionManager transactionManager)
+```
+- Configures Spring Batch metadata repository
+- Uses PostgreSQL database
+- Stores job execution history and status
+
+### File Tracking
+The system uses `FileRecord` entity to track:
+- `filename`: Name of processed file
+- `processed`: Boolean flag indicating completion status
+
+## Usage Example
+
+### 1. File Structure
+```json
+[
+  {
+   ...
+  },
+  {
+   ....
+  }
+]
+```
+
+### 2. Processing Flow
+1. Place JSON file in configured upload directory
+2. Scheduler detects file within 60 seconds
+3. System creates job: `job-{UUID}`
+4. Creates step: `step-{UUID}` with chunk size 100
+5. Processes file in chunks of 100 records
+6. Inserts feedback data via `FeedbackServiceImpl`
+7. Marks file as processed and deletes it
+
+### 3. Configuration Properties
+```properties
+file.upload-dir=/path/to/upload/directory
+spring.batch.jdbc.initialize-schema=always
+```
+
+## Monitoring & Logs
+
+### Success Indicators
+- `✅ Completed and deleted: filename.json`
+- `✅ No files to process.`
+
+### Skip Indicators  
+- `⏩ Already processed: filename.json`
+- `⏳ Batch already running. Skipping this schedule.`
+
+### Error Indicators
+- `❌ Failed to process: filename.json`
+- `❌ Error with file: filename.json`
+
+## Benefits
+
+1. **Automatic Processing**: No manual intervention required
+2. **Fault Tolerance**: Handles failures gracefully with retry capability
+3. **Memory Efficient**: Chunk-based processing for large files
+4. **Duplicate Prevention**: Database tracking prevents reprocessing
+5. **Scalable**: Can handle multiple files and large datasets
+6. **Transactional**: Each chunk processed in separate transaction
+7. **Monitoring**: Clear logging and status tracking
+
+This system provides a robust, automated solution for processing feedback JSON files with built-in error handling, monitoring, and recovery capabilities.
+
 ### 4. Database Layer
 ### Star Schema Design
 
