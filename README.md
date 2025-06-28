@@ -16,12 +16,182 @@ This backend project implements a scalable feedback ingestion and analytics pipe
 - **GET `/api/files/status`**  
   Returns counts/statistics on uploaded, processed, and pending files, including processing rates.
 
-### 2. File Handling Layer
 
-#### `FileStorageService`
-- Ensures the `./uploads` directory exists.
-- Handles atomic saving of files.
-- Checks for file duplicates by filename.
+  
+# API Endpoints & Entities Documentation
+
+## File Upload API (`/api/files`)
+
+### 1. Upload File Endpoint
+
+**Endpoint:** `POST /api/files/upload`
+
+**Description:** Uploads JSON feedback files for batch processing
+
+**CORS:** Enabled for `http://localhost:5173`
+
+#### Request Parameters
+- `file` (MultipartFile) - The JSON file to upload
+
+#### Request Example
+```bash
+curl -X POST http://localhost:8080/api/files/upload \
+  -F "file=@feedback.json"
+```
+
+#### Response Format
+```json
+{
+  "success": boolean,
+  "message": string,
+  "filename": string
+}
+```
+
+#### Response Examples
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "✅ File uploaded successfully",
+  "filename": "feedback.json"
+}
+```
+
+**Error Responses (400 Bad Request):**
+```json
+{
+  "success": false,
+  "message": "❌ File already exists in storage",
+  "filename": "feedback.json"
+}
+```
+
+```json
+{
+  "success": false,
+  "message": "❌ File already processed",
+  "filename": "feedback.json"
+}
+```
+
+**Server Error (500 Internal Server Error):**
+```json
+{
+  "success": false,
+  "message": "❌ Failed to save file",
+  "filename": "feedback.json"
+}
+```
+
+#### Processing Flow
+1. **Duplicate Check**: Verifies file doesn't exist in storage
+2. **Processing Check**: Ensures file hasn't been processed before
+3. **File Storage**: Saves file to configured upload directory
+4. **Database Record**: Creates `FileRecord` entry with `processed = false`
+5. **Scheduled Processing**: File will be picked up by `MultiFileBatchRunner` within 60 seconds
+
+---
+
+### 2. File Status Endpoint
+
+**Endpoint:** `GET /api/files/status`
+
+**Description:** Returns status of all uploaded files
+
+#### Response Format
+```json
+[
+  {
+    "filename": string,
+    "processed": boolean,
+    "uploadedAt": timestamp
+  }
+]
+```
+
+#### Response Example
+```json
+[
+  {
+    "filename": "feedback_batch_1.json",
+    "processed": true,
+    "uploadedAt": "2025-06-28T10:30:00"
+  },
+  {
+    "filename": "feedback_batch_2.json",
+    "processed": false,
+    "uploadedAt": "2025-06-28T11:15:00"
+  }
+]
+```
+
+
+## Entity Models (part )
+
+### FileRecord Entity
+
+**Table:** `file_record`
+
+```java
+@Entity
+public class FileRecord {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @Column(unique = true)
+    private String filename;
+    
+    private boolean processed;
+    
+    private LocalDateTime uploadedAt = LocalDateTime.now();
+}
+```
+
+#### Purpose
+- **Duplicate Prevention**: Ensures files aren't processed twice
+- **Status Tracking**: Monitors file processing state
+- **Audit Trail**: Records when files were uploaded
+
+
+
+## File Storage Service
+
+### Configuration
+```properties
+file.upload-dir=/path/to/upload/directory
+```
+
+### Key Features
+- **Directory Management**: Auto-creates upload directory if missing
+- **File Conflict Resolution**: Uses `REPLACE_EXISTING` strategy
+- **Path Resolution**: Provides absolute file paths for batch processing
+- **Existence Checking**: Validates file presence before processing
+
+### Methods
+```java
+public void saveFile(MultipartFile file) throws IOException
+public boolean fileExists(String filename)
+public Path getFilePath(String filename)
+```
+
+---
+
+## Integration Flow
+
+### Upload to Processing Pipeline
+1. **File Upload** → `FileUploadController.uploadFile()`
+2. **Storage** → `FileStorageService.saveFile()`
+3. **Database Record** → `FileRecord` created with `processed = false`
+4. **Scheduled Detection** → `MultiFileBatchRunner` finds file within 60 seconds
+5. **Batch Processing** → Spring Batch job processes file in chunks of 100
+6. **Status Update** → `FileRecord.processed = true`
+7. **Cleanup** → File deleted from storage
+8. **Job Tracking** → `JobExecutionStatus` records job metrics
+
+This architecture provides complete visibility into the file processing pipeline from upload through completion.
 
 ### 3. Batch Processing Layer
 
